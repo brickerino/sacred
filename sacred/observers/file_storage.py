@@ -5,8 +5,9 @@ import json
 import os
 import os.path
 import tempfile
+import time
 
-from shutil import copyfile
+from shutil import copyfile, move
 
 from sacred.commandline_options import CommandLineOption
 from sacred.dependencies import get_digest
@@ -144,8 +145,20 @@ class FileStorageObserver(RunObserver):
         return store_path, md5sum
 
     def save_json(self, obj, filename):
-        with open(os.path.join(self.dir, filename), 'w') as f:
+        tmp_filename = os.path.join(self.dir, 'tmp_' + filename)
+        filename = os.path.join(self.dir, filename)
+        with open(tmp_filename, 'w') as f:
             json.dump(flatten(obj), f, sort_keys=True, indent=2)
+        max_tries = 1000
+        while max_tries > 0:
+            try:
+                move(tmp_filename, filename)
+                break
+            except Exception as e:
+                max_tries -= 1
+                time.sleep(0.1)
+        if max_tries == 0:
+            raise e
 
     def save_file(self, filename, target_name=None):
         target_name = target_name or os.path.basename(filename)
